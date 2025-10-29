@@ -3,12 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, Plus, TrendingUp, DollarSign, AlertCircle } from "lucide-react";
+import { LogOut, Plus, TrendingUp, DollarSign, AlertCircle, Edit } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ExpenseForm from "./ExpenseForm";
 import ExpenseList from "./ExpenseList";
 import ExpenseChart from "./ExpenseChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface Profile {
   daily_limit: number;
@@ -31,6 +34,8 @@ const Dashboard = () => {
   const [todayTotal, setTodayTotal] = useState(0);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [newLimit, setNewLimit] = useState("");
 
   useEffect(() => {
     fetchProfile();
@@ -102,6 +107,42 @@ const Dashboard = () => {
     fetchExpenses();
   };
 
+  const handleUpdateLimit = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const limitValue = parseFloat(newLimit);
+    if (isNaN(limitValue) || limitValue <= 0) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ daily_limit: limitValue })
+      .eq("id", user.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update daily limit",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Daily limit updated successfully",
+      });
+      setShowLimitDialog(false);
+      setNewLimit("");
+      fetchProfile();
+    }
+  };
+
   const isOverLimit = profile && todayTotal > profile.daily_limit;
 
   return (
@@ -159,7 +200,38 @@ const Dashboard = () => {
           <Card className="shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Daily Limit</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update Daily Limit</DialogTitle>
+                    <DialogDescription>
+                      Set your new daily expense limit
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="limit">New Daily Limit ($)</Label>
+                      <Input
+                        id="limit"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Enter amount"
+                        value={newLimit}
+                        onChange={(e) => setNewLimit(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={handleUpdateLimit} className="w-full">
+                      Update Limit
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-accent">
